@@ -12,8 +12,12 @@ milestones of the combined repository.
   she talk about you, a note, invite both, a compliment in front of her, a hidden touch), with the other's reaction.
 - Talk with two girls: the target button sits under Spicy at 80% size, right-aligned; the top icons in one row;
   Talk is blue and the target white.
-- One pace profile for answers and gains (they disagreed); a normal girl now takes ~5 talked days to say yes to H, a
-  reserved one ~7 (dating stays ~4 and ~5-6, an open girl 2-3 days and H on a perfect first day).
+- Affection and H fill slowly: smaller talk rewards and a daily curve for both (whole, then half, then a tenth),
+  wider for open girls and narrower for reserved ones. No more minimum number of days: a well-played normal girl
+  dates you on day ~4 and says yes to H on day ~5, a reserved one ~5 and ~7, an open one 2-3 and H on a perfect first
+  day. One pace profile for answers and gains (they disagreed).
+- Clicking the second girl's body in a talk with both works with the real mouse (the player's own sight triggers
+  were in the way).
 - More dialogue lines (touch, pair talk, refusals).
 
 ## 2.x milestones

@@ -430,9 +430,16 @@ namespace Joojkk.CampusLife
                 var box = ScreenBox(rects[0]);
                 foreach (var r in rects.Skip(1)) box = Join(box, ScreenBox(r));
                 var near = new Rect(box.xMin - 140f, box.yMin - 140f, box.width + 280f, box.height + 280f);
+                var canvas = rects[0].GetComponentInParent<Canvas>();
+                var root = canvas != null ? canvas.rootCanvas : null;
                 foreach (var b in Object.FindObjectsOfType<Button>())
                 {
                     if (b == null || !b.gameObject.activeInHierarchy || b.name.StartsWith("cl_", StringComparison.Ordinal)) continue;
+                    // Only the talk's own icons: the map's buttons (ClothChange, hidden under the talk) sit near them and
+                    // were pulled into the row as an empty gap.
+                    var bc = b.GetComponentInParent<Canvas>();
+                    if (root != null && (bc == null || bc.rootCanvas != root)) continue;
+                    if (b.GetComponentsInParent<CanvasGroup>().Any(g => g.alpha < 0.05f)) continue;
                     var r = (RectTransform)b.transform;
                     if (rects.Contains(r) || rects.Any(x => r.IsChildOf(x) || x.IsChildOf(r))) continue;
                     var sb = ScreenBox(r);

@@ -179,7 +179,9 @@ namespace Joojkk.CampusLife
             var line = Bank.Pick("bounds", c, GirlInfo.Key(h), out r);
             if (string.IsNullOrEmpty(line)) line = BoundsStock(h, c["hbound"]);
             id = r != null ? r.Id : "stock";
-            return Compose(line, c);
+            // Said as it is: a greeting or a remark about the weather ("Sorry, do I know you?", "My shoes are still wet.")
+            // does not belong right before H.
+            return line;
         }
 
         private static string BoundsStock(SaveData.Heroine h, string what)

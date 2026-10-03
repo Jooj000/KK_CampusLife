@@ -654,14 +654,17 @@ namespace Joojkk.CampusLife
 
         // ================= beats, rewards, repetition =================
 
-        /// <summary>The reward table: level x how fitting the answer was (favor, H, trust).</summary>
+        /// <summary>
+        /// "balancear direito o afeto para não encher tão rápido ... não colocar um limite artificial de piso de dias"):
+        /// with the daily curve (G.AddFavor) the days come out of the affection itself, measured with pacesim.
+        /// </summary>
         private static int[] Table(Lvl l, Q q)
         {
             switch (l)
             {
-                case Lvl.Friend: return q == Q.Good ? new[] { 10, 0, 2 } : q == Q.Neutral ? new[] { 4, 0, 0 } : new[] { -2, 0, -1 };
-                case Lvl.Romance: return q == Q.Good ? new[] { 8, 5, 2 } : q == Q.Neutral ? new[] { 5, 3, 0 } : new[] { -2, -1, -1 };
-                default: return q == Q.Good ? new[] { 5, 12, 1 } : q == Q.Neutral ? new[] { 2, 6, 0 } : new[] { -2, -1, 0 };
+                case Lvl.Friend: return q == Q.Good ? new[] { 5, 0, 2 } : q == Q.Neutral ? new[] { 2, 0, 0 } : new[] { -2, 0, -1 };
+                case Lvl.Romance: return q == Q.Good ? new[] { 4, 3, 2 } : q == Q.Neutral ? new[] { 2, 2, 0 } : new[] { -2, -1, -1 };
+                default: return q == Q.Good ? new[] { 2, 6, 1 } : q == Q.Neutral ? new[] { 1, 3, 0 } : new[] { -2, -1, 0 };
             }
         }
 
@@ -709,7 +712,7 @@ namespace Joojkk.CampusLife
             if (_prunedDay == S.Day) return;
             _prunedDay = S.Day;
             foreach (var k in S.Buffs.Keys.Where(k => k.StartsWith("rep:", StringComparison.Ordinal) && S.Buffs[k] / 10 != S.Day).ToList()) S.Buffs.Remove(k);
-            foreach (var k in S.Buffs.Keys.Where(k => k.StartsWith("fday:", StringComparison.Ordinal) && S.Buffs[k] / 1000 != S.Day).ToList()) S.Buffs.Remove(k);
+            foreach (var k in S.Buffs.Keys.Where(k => (k.StartsWith("fday:", StringComparison.Ordinal) || k.StartsWith("hday:", StringComparison.Ordinal)) && S.Buffs[k] / 1000 != S.Day).ToList()) S.Buffs.Remove(k);
         }
 
         private static string[] Stock(Q q)
