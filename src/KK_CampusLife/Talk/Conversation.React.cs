@@ -24,7 +24,7 @@ namespace Joojkk.CampusLife
             public string Kind = "";       // touch | idle
             public int Part, Level;
             public bool Look;
-            public string PartName, Kiss = "";   // butt / mouth (ours, TouchMore); yes / no for a kiss
+            public string PartName, Kiss = "", Answer = "";   // butt / mouth (ours, TouchMore); yes / wary / wary_no / no for a kiss; the director's answer to a touch
             public float At, ReadyAt;
             public Info Info;
         }
@@ -246,7 +246,7 @@ namespace Joojkk.CampusLife
                     var pose = VariedPose(PartPool(__instance, _touch, _parts, _stage), PosePool(__instance, "touch", _stage), "t" + _touch + _parts, gamePose, Mathf.Min(_stage, 3));
                     if (pose != null) __result.pose = pose;
                 }
-                if (Active) _pend = new Pend { Her = h, Kind = "touch", Part = _parts, Look = !_touch, Level = h.isAnger ? 3 : _stage, At = Time.realtimeSinceStartup, Info = __instance };
+                if (Active) _pend = new Pend { Her = h, Kind = "touch", Part = _parts, Look = !_touch, Level = h.isAnger ? 3 : _stage, Answer = h.isAnger ? "no" : Consent.LastTouch, At = Time.realtimeSinceStartup, Info = __instance };
             }
             catch (Exception e) { CampusLifePlugin.Log.LogDebug("Touch clip: " + e.Message); }
         }
@@ -401,6 +401,7 @@ namespace Joojkk.CampusLife
                 // places (butt, lips) always answer: the game says nothing for them.
                 if (p.PartName == null && n > 1 && p.Level < 2 && Random.value > 0.35f) return;
                 if (p.Kiss != "") c["kiss"] = p.Kiss;
+                if (p.Answer != "") c["answer"] = p.Answer;
                 c["part"] = part;
                 c["look"] = p.Look ? "yes" : "no";
                 c["level"] = p.Level == 0 ? "welcome" : p.Level == 1 ? "uneasy" : p.Level == 2 ? "stop" : "angry";
@@ -421,8 +422,9 @@ namespace Joojkk.CampusLife
             var b = new SceneBuilder(h, true);
             if (p.Kiss == "yes") b.Narr(Lines.Pick("You lean in and kiss her softly.", "You touch her lips, then lean in and kiss her.", "You lean in. She doesn't pull away, and your lips meet.", "You brush her lips with a finger and kiss her before she can say a word."));
             else if (p.Kiss == "wary") b.Narr(Lines.Pick("You lean in. She stiffens, hesitates... and doesn't pull away.", "Your lips meet hers. She holds still, eyes squeezed shut.", "You lean in slowly. She flinches, then lets you kiss her.", "She freezes when you lean in, but she doesn't turn her face away."));
+            else if (p.Kiss == "wary_no") b.Narr(Lines.Pick("You lean in. She leans in too... then stops an inch away and turns aside, flustered.", "Your lips almost meet. She pulls back at the last second, cheeks burning.", "She closes her eyes when you lean in, then catches herself and steps back.", "For a moment she lets you come close. Then she puts a finger on your lips."));
             else if (p.Kiss == "no") b.Narr(Lines.Pick("You lean in for a kiss. She turns her face away.", "Your finger brushes her lips; she steps back before you can lean in.", "You lean in. She puts a hand on your chest and stops you."));
-            b.Face(h, p.Kiss == "yes" ? Feel.Love : p.Kiss == "wary" ? Feel.Shy : FeelOf(rule, c)).Her_(line);
+            b.Face(h, p.Kiss == "yes" ? Feel.Love : p.Kiss == "wary" || p.Kiss == "wary_no" ? Feel.Shy : FeelOf(rule, c)).Her_(line);
             // Weight: she walks off after the third silence if she barely knows you; a crowd watching you
             // touch her gets talked about; a rival watching remembers.
             Action after = p.PartName != null ? SpotAfter(p) : null;
@@ -471,25 +473,25 @@ namespace Joojkk.CampusLife
             if (wrel == "yourgf")
             {
                 b.Narr(bn + " walks over and slips her arm around yours.");
-                b.Face(by, Feel.Smile).Say(by, Lines.T(tb, "Hi, " + hn + ". Mind if I borrow him?", "Heeey! What are you two talking about?", "...Hey. Am I interrupting?", "Oh? Having fun without me?"));
-                b.Face(h, Feel.Worried).Say(h, Lines.T(th, "Oh! N-no, of course not.", "Ah! No, no, go ahead!", "...We were just talking.", "Relax, I wasn't stealing him. Yet."));
+                b.Face(by, Feel.Smile).Say(by, Lines.T(tb, "Hi, " + hn + ". Mind if I borrow him? || Um, " + hn + "... could I borrow him for a moment? || Hi, " + hn + "! Sorry, do you mind if I join?" + " || " + hn + ", hi... Can I steal him for a bit?", "Heeey! What are you two talking about? || Hiii! What are you guys up to? || Hey, hey! Mind if I crash this? || Yo! What's the topic? Let me in!", "...Hey. Am I interrupting? || ...Am I interrupting something? || ...Hey. Is this a bad time? || ...Mind if I stay?", "Oh? Having fun without me? || Oh my, having fun without me? || Well, well. A private chat, hm? || Starting the party without me? Rude~"));
+                b.Face(h, Feel.Worried).Say(h, Lines.T(th, "Oh! N-no, of course not. || Ah! N-no, it's okay! || Oh, of course not, it's fine! || N-no, not at all...!", "Ah! No, no, go ahead! || Nope! Not at all, go ahead! || Huh? Nah, it's cool! || Ah, sure, sure! No problem!", "...We were just talking. || ...We were only talking. || ...It's fine. || ...Nothing important.", "Relax, I wasn't stealing him. Yet. || Relax. He's still yours. For now. || Don't worry, I'm only borrowing. Probably. || Calm down~ I won't keep him. Maybe."));
                 // A girl who likes you, seen with you by your girlfriend: Share decides how she takes it.
                 return () => { if (Interested(h) || h.relation >= 2) Share.Learned(by, h, true); };
             }
             if (wrel == "rival")
             {
                 b.Narr(bn + " passes by and stops.");
-                b.Face(by, Feel.Serious).Say(by, Lines.T(tb, "Oh... it's you, " + hn + ".", "Ha! " + hn + " actually found someone to talk to?", "...Don't let me interrupt your little chat.", "Wow, " + hn + ". Lowering your standards?"));
-                b.Face(h, Feel.Pout).Say(h, Lines.T(th, "...Please just go away.", "Get lost, " + bn + "!", "...Are you done?", "Jealous? Bye-bye~"));
+                b.Face(by, Feel.Serious).Say(by, Lines.T(tb, "Oh... it's you, " + hn + ". || Oh... " + hn + ". Hello... || ...Ah. It's you, " + hn + "." + " || " + hn + "... I didn't think I'd see you here.", "Ha! " + hn + " actually found someone to talk to? || Whoa, " + hn + " found a friend? That's new! || Hah! " + hn + ", talking to people? Big day! || No way, " + hn + " has a conversation partner?!", "...Don't let me interrupt your little chat. || ...Don't let me ruin your chat. || ...Carry on. Pretend I'm not here. || ...How nice for you, " + hn + ".", "Wow, " + hn + ". Lowering your standards? || Wow, " + hn + ". Settling for him, are we? || Oh, " + hn + ". Scraping the bottom now?" + " || " + hn + ", really? Your standards are slipping~"));
+                b.Face(h, Feel.Pout).Say(h, Lines.T(th, "...Please just go away. || ...Could you please leave us alone? || ...Please, just go. || ...I don't want to talk to you right now.", "Get lost, " + bn + "! || Beat it, " + bn + "! || Go away, " + bn + "! Seriously! || Shoo, " + bn + "! Nobody invited you!", "...Are you done? || ...Are you finished? || ...Is that all? || ...You can go now.", "Jealous? Bye-bye~ || Jealous much? Bye~ || Aww, someone's bitter. See you never~ || Run along now, " + bn + "~"));
                 b.Narr(bn + " clicks her tongue and leaves. " + hn + " moves a little closer to you.");
-                b.Face(h, Feel.Shy).Her_(Lines.T(th, "Sorry about her. Thanks for staying.", "Ugh! Sorry. You're way better company.", "...Thanks for not leaving.", "She's just mad I'm with you."));
+                b.Face(h, Feel.Shy).Her_(Lines.T(th, "Sorry about her. Thanks for staying. || I'm sorry about her... Thank you for not leaving. || Sorry she said that... I'm glad you stayed. || Please don't mind her... thanks for staying with me.", "Ugh! Sorry. You're way better company. || Ugh, sorry about that! You're way more fun anyway! || Sorry, sorry! Ignore her, you're the best! || Man, sorry! Glad you're still here though!", "...Thanks for not leaving. || ...Thanks for staying. || ...Sorry about that. And thanks. || ...You didn't leave. Good.", "She's just mad I'm with you. || She's just sour that I'm with you. || Ignore her. She wishes she were me right now. || Someone's jealous. Can't blame her, really."));
                 return () => { Arcs.AddBond(kh, kb, -3); h.favor = Mathf.Min(100, h.favor + 2); };
             }
             // A friend of hers.
             b.Narr(bn + " sneaks up behind " + hn + ".");
-            b.Face(by, Feel.Laugh).Say(by, Lines.T(tb, "Ah, sorry! Am I interrupting something?", "Ooh! What's this, what's this? A date?", "...So this is where you were.", "Well, well. " + hn + ", you never told me~"));
-            b.Face(h, Feel.Shy).Say(h, Lines.T(th, "I-it's not like that!", "Shut up, it's not a date!", "...Go away.", "Maybe it is. Jealous?"));
-            b.Face(by, Feel.Smile).Say(by, Lines.T(tb, "Hehe. I'll leave you two alone, then.", "Okay, okay! Have fun, lovebirds!", "...Sure. See you later.", "Don't do anything I wouldn't do~"));
+            b.Face(by, Feel.Laugh).Say(by, Lines.T(tb, "Ah, sorry! Am I interrupting something? || Oh, sorry! Did I interrupt? || Ah... I'm sorry, am I in the way? || Oh! Sorry, I didn't mean to barge in...", "Ooh! What's this, what's this? A date? || Ooooh! Is this a date?! Is it?! || Whoa whoa! What's going on here?! Spill! || Hey hey! You two look cozy!", "...So this is where you were. || ...So this is where you've been. || ...Found you. || ...I see. That's where you went.", "Well, well. " + hn + ", you never told me~ || Well, well. " + hn + ", you kept this quiet~ || My, my. " + hn + ", hiding something? || Oh~ " + hn + ", you never mentioned him."));
+            b.Face(h, Feel.Shy).Say(h, Lines.T(th, "I-it's not like that! || I-it's not what it looks like! || No, no! It's not like that at all! || W-we're just talking...!", "Shut up, it's not a date! || It's NOT a date! Shut up! || Ugh, quit it! It's not like that! || Stop! It's not a date, okay?!", "...Go away. || ...Leave. || ...Don't. || ...Go somewhere else.", "Maybe it is. Jealous? || And if it is? Jealous? || Maybe it is. Got a problem with that? || Who knows~ Does it bother you?"));
+            b.Face(by, Feel.Smile).Say(by, Lines.T(tb, "Hehe. I'll leave you two alone, then. || Ehehe... I'll give you two some space. || Okay, I'll leave you alone, then. Bye! || Sorry for interrupting. Have fun, you two.", "Okay, okay! Have fun, lovebirds! || Alright, alright! Enjoy, lovebirds! || Okay, I'm out! Have fun! || Bye, you two! Don't be too cute!", "...Sure. See you later. || ...Fine. Later. || ...I'll go, then. || ...See you.", "Don't do anything I wouldn't do~ || Behave yourselves~ Or don't. || Have fun. Not too much fun~ || I'll be going. Don't miss me too much~"));
             // The friend tells the others: the story spreads, a little warmer between the two of them.
             return () => { Arcs.AddBond(kh, kb, 2); Social.Add(Social.Kinds.Flirted, h, new[] { by }, Witness.Flirt); };
         }

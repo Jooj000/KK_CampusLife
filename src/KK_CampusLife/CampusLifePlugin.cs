@@ -24,7 +24,7 @@ namespace Joojkk.CampusLife
     {
         public const string GUID = "joojkk.campuslife";
         public const string PluginName = "Campus Life";
-        public const string Version = "3.0.0";
+        public const string Version = "3.3.0";
 
         internal static CampusLifePlugin Instance;
         internal static ManualLogSource Log;
@@ -53,6 +53,8 @@ namespace Joojkk.CampusLife
                 try { Sunday.Install(harmony); }
                 catch (Exception e) { Log.LogWarning("Sunday stories not available: " + e.Message); }
                 CardTraits.Install(harmony);
+                try { Boys.Install(harmony); }
+                catch (Exception e) { Log.LogWarning("Boys in the class not available: " + e.Message); }
                 try { TransitionScreen.Install(harmony); }
                 catch (Exception e) { Log.LogWarning("Loading screen destination not available: " + e.Message); }
             }
@@ -71,8 +73,9 @@ namespace Joojkk.CampusLife
         /// <summary>After the game's own camera of the talk screen: the frame with both girls (TrioStage).</summary>
         private void LateUpdate()
         {
-            try { if (TrioStage.On) TrioStage.LateTick(Conversation.TrioUiVisible); }
+            try { if (TrioStage.On) TrioStage.LateTick(Conversation.TrioUiVisible); else TrioStage.FrameTick(); }
             catch (Exception e) { Log.LogDebug("Trio camera: " + e.Message); }
+            Duo.LateTick();
         }
 
         private void Update()
