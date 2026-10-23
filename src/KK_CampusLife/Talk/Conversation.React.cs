@@ -27,6 +27,10 @@ namespace Joojkk.CampusLife
             public string PartName, Kiss = "", Answer = "";   // butt / mouth (ours, TouchMore); yes / wary / wary_no / no for a kiss; the director's answer to a touch
             public float At, ReadyAt;
             public Info Info;
+            /// <summary>One click, one reaction: her line answers this touch, so the game's clip gives way and its pose goes with the line.</summary>
+            public bool Speak = true, Cut;
+            public string Pose;
+            public int Frame = -1;   // the frame TouchFunc asked for the game's clip (TouchClip)
         }
 
         private static Pend _pend;
@@ -39,6 +43,7 @@ namespace Joojkk.CampusLife
             {
                 harmony.Patch(AccessTools.Method(typeof(Info), "GetTouchVoice"), postfix: new HarmonyMethod(typeof(Conversation), nameof(TouchClip)));
                 harmony.Patch(AccessTools.Method(typeof(Info), "GetLeaveAloneVoice"), postfix: new HarmonyMethod(typeof(Conversation), nameof(IdleClip)));
+                harmony.Patch(AccessTools.Method(typeof(TalkScene), "TouchFunc"), postfix: new HarmonyMethod(typeof(Conversation), nameof(CutTouchVoice)));
             }
             catch (Exception e) { CampusLifePlugin.Log.LogWarning("Conversation reactions: " + e.Message); }
         }
@@ -246,7 +251,24 @@ namespace Joojkk.CampusLife
                     var pose = VariedPose(PartPool(__instance, _touch, _parts, _stage), PosePool(__instance, "touch", _stage), "t" + _touch + _parts, gamePose, Mathf.Min(_stage, 3));
                     if (pose != null) __result.pose = pose;
                 }
-                if (Active) _pend = new Pend { Her = h, Kind = "touch", Part = _parts, Look = !_touch, Level = h.isAnger ? 3 : _stage, Answer = h.isAnger ? "no" : Consent.LastTouch, At = Time.realtimeSinceStartup, Info = __instance };
+                if (Active)
+                {
+                    var level = h.isAnger ? 3 : _stage;
+                    // Not after every poke: the first touch of each place, every "stop it", and a third of the rest.
+                    var speak = Count("react:touch:" + PartWord(_parts, !_touch)) == 0 || level >= 2 || Random.value <= 0.35f;
+                    _pend = new Pend { Her = h, Kind = "touch", Part = _parts, Look = !_touch, Level = level, Answer = h.isAnger ? "no" : Consent.LastTouch, At = Time.realtimeSinceStartup, Info = __instance, Speak = speak, Frame = Time.frameCount };
+                    TouchNote("clip " + PartWord(_parts, !_touch) + (speak ? " (her line answers)" : " (only the clip)"));
+                    // She used to take the clip, stand again, and take the line with another pose: two reactions to one
+                    // click (user, 2026-11-01). The pose waits for the line and her face is the line's; the voice keeps its
+                    // file, so TouchFunc and TouchEnd run as always (an empty one froze the talk and the map, 2026-11-02),
+                    // and CutTouchVoice takes it away in the same frame.
+                    if (speak && OneBeat)
+                    {
+                        _pend.Pose = __result.pose;
+                        __result.facialExpression = "";
+                        __result.pose = "";
+                    }
+                }
             }
             catch (Exception e) { CampusLifePlugin.Log.LogDebug("Touch clip: " + e.Message); }
         }
@@ -359,12 +381,52 @@ namespace Joojkk.CampusLife
             if (Scenes.Running || ADV.Program.isADVProcessing || GiftMenu.IsOpen || !CanvasOn(ts)) return;
             object voice = null;
             try { voice = TransVoiceField != null ? TransVoiceField.GetValue(ts) : null; } catch { }
-            if (voice as UnityEngine.Object != null) { p.ReadyAt = 0f; return; }
-            if (p.ReadyAt <= 0f) { p.ReadyAt = now + 0.35f; return; }
+            if (voice as UnityEngine.Object != null)
+            {
+                p.ReadyAt = 0f;
+                if (OneBeat && p.Kind == "touch" && p.Speak && !p.Cut)
+                {
+                    CutVoice((Transform)voice);
+                    p.Cut = true;
+                }
+                return;
+            }
+            if (p.ReadyAt <= 0f) { p.ReadyAt = now + (OneBeat && p.Speak ? 0.05f : 0.35f); return; }
             if (now < p.ReadyAt) return;
             _pend = null;
             try { PlayReact(p); }
             catch (Exception e) { CampusLifePlugin.Log.LogDebug("Talk reaction: " + e.Message); }
+        }
+
+        /// <summary>
+        /// The game's voice for a touch our line answers goes away in the frame it was asked for, before it loads: no sound, and
+        /// no caption from KK_Subtitles, which showed its text apart from our box ("I told you to stop! so persistent!", always
+        /// the same; user, 2026-11-02). TouchEnd sees the voice gone and gives the talk back as usual.
+        /// </summary>
+        private static void CutTouchVoice(TalkScene __instance)
+        {
+            try
+            {
+                var p = _pend;
+                if (p == null || !OneBeat || p.Kind != "touch" || !p.Speak || p.Cut || p.Frame != Time.frameCount) return;
+                var voice = TransVoiceField != null ? TransVoiceField.GetValue(__instance) as Transform : null;
+                if (voice == null) return;
+                CutVoice(voice);
+                p.Cut = true;
+            }
+            catch (Exception e) { CampusLifePlugin.Log.LogDebug("Touch voice: " + e.Message); }
+        }
+
+        /// <summary>
+        /// Manager.Voice.Stop(Transform) stops only the voices that follow that transform (a mouth), not the voice it returned:
+        /// with TalkScene's transVoice it stopped nothing, and the game's clip played to the end under our line (2026-11-05).
+        /// The voice is the object Voice.Play returned; destroying it ends the sound, its loader and its caption.
+        /// </summary>
+        private static void CutVoice(Transform voice)
+        {
+            if (voice == null) return;
+            UnityEngine.Object.Destroy(voice.gameObject);
+            TouchNote("voice cut");
         }
 
         private static int Count(string key)
@@ -397,9 +459,8 @@ namespace Joojkk.CampusLife
                 var part = p.PartName ?? PartWord(p.Part, p.Look);
                 var n = Count("react:touch:" + part) + 1;
                 s.Did.Add("react:touch:" + part + ":" + n);
-                // Not after every poke: the first touch of each place, every "stop it", and a third of the rest. Our own
-                // places (butt, lips) always answer: the game says nothing for them.
-                if (p.PartName == null && n > 1 && p.Level < 2 && Random.value > 0.35f) return;
+                // Decided with the clip (TouchClip). Our own places (butt, lips) always answer: the game says nothing for them.
+                if (p.PartName == null && !p.Speak) return;
                 if (p.Kiss != "") c["kiss"] = p.Kiss;
                 if (p.Answer != "") c["answer"] = p.Answer;
                 c["part"] = part;
@@ -418,7 +479,13 @@ namespace Joojkk.CampusLife
             }
             DlgRule rule;
             var line = Bank.Pick(on, c, key, out rule);
-            if (string.IsNullOrEmpty(line)) { if (p.PartName != null) { var a = SpotAfter(p); if (a != null) a(); } return; }
+            if (string.IsNullOrEmpty(line))
+            {
+                if (p.PartName != null) { var a = SpotAfter(p); if (a != null) a(); }
+                else if (p.Pose != null) PlayPose(G.TalkScene, p.Pose);
+                return;
+            }
+            TouchNote(on + " line " + (rule != null ? rule.Id : "?"));
             var b = new SceneBuilder(h, true);
             if (p.Kiss == "yes") b.Narr(Lines.Pick("You lean in and kiss her softly.", "You touch her lips, then lean in and kiss her.", "You lean in. She doesn't pull away, and your lips meet.", "You brush her lips with a finger and kiss her before she can say a word."));
             else if (p.Kiss == "wary") b.Narr(Lines.Pick("You lean in. She stiffens, hesitates... and doesn't pull away.", "Your lips meet hers. She holds still, eyes squeezed shut.", "You lean in slowly. She flinches, then lets you kiss her.", "She freezes when you lean in, but she doesn't turn her face away."));
@@ -449,7 +516,7 @@ namespace Joojkk.CampusLife
             CampusLifePlugin.Log.LogInfo("Conversation: " + GirlInfo.FirstName(h) + ": " + on + (by != null ? " interrupted by " + GirlInfo.FirstName(by) : "") + " reaction (" + (rule != null ? rule.Id : "?") + ")");
             // A second movement with her line (another pose of the same feeling), and back to standing when it ends.
             var ts = G.TalkScene;
-            var follow = by != null ? null : OtherPose(PosePool(p.Info, on, on == "touch" ? Mathf.Min(p.Level, 2) : 0));
+            var follow = by != null ? null : !string.IsNullOrEmpty(p.Pose) ? p.Pose : OtherPose(PosePool(p.Info, on, on == "touch" ? Mathf.Min(p.Level, 2) : 0));
             if (Scenes.PlayInTalk(b, _ =>
                 {
                     if (after != null) try { after(); } catch (Exception e) { CampusLifePlugin.Log.LogDebug(e); }

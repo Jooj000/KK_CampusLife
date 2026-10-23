@@ -26,10 +26,13 @@ namespace Joojkk.CampusLife
                 S = new CampusState();
             }
             Loaded = true;
+            var entering = !S.Started;
             // Older versions could post requests for story heroines, who have no everyday conversations.
             var dropped = S.Requests.RemoveAll(r => r.State == RequestState.Active && ((r.Girl ?? "").StartsWith("fix:") || (r.Other ?? "").StartsWith("fix:")));
             if (dropped > 0) CampusLifePlugin.Log.LogInfo("Removed " + dropped + " request(s) for story heroines.");
             EnsureStarted();
+            // A save that never had this mod: its day already went by, so nothing can be missed in it.
+            if (entering && S.Started) S.Buffs[Board.EntryKey] = S.Day;
             if (Spotlight.IsActive && S.Spotlight.Count == 0) Spotlight.Rotate();
         }
 
@@ -71,7 +74,8 @@ namespace Joojkk.CampusLife
             Moods.RollAll();
             try { Lore.Prune(); } catch (Exception e) { CampusLifePlugin.Log.LogError(e); }
             Spotlight.Rotate();
-            if (G.IsSchoolDay) Board.GenerateDaily();
+            // The game only saves at night: a board made here would be missed by the morning. EnsureToday makes it during a day.
+            if (G.InRoamingPeriod) Board.GenerateDaily();
         }
 
         // ---------------- game events ----------------
@@ -118,10 +122,26 @@ namespace Joojkk.CampusLife
         }
 
         private static int _energyPeriod = -1;
+        private static int _resumed = -1;
+
+        /// <summary>
+        /// Campus Saves is coming back to the middle of a day. The game starts that period again, and to us it
+        /// would be a new one: energy back, needs down, gossip and pairs a step ahead, a second roll for a happening.
+        /// </summary>
+        public static void DayResumed(int period) { _resumed = period; }
 
         public static void OnPeriodChange(Cycle.Type period)
         {
+            var back = _resumed == (int)period;
+            _resumed = -1;
             if (!On) return;
+            if (back)
+            {
+                CampusLifePlugin.Log.LogInfo("Back in the middle of day " + S.Day + ", " + period + ": the period goes on");
+                Calendar.PeriodResumed();
+                if (G.ToMask(period) != PeriodMask.None && G.IsSchoolDay) Director.OnResumed();
+                return;
+            }
             Board.ExpirePassedWindows();
             // Each free period after lunch gives back one energy (the day starts full; this keeps an afternoon worth
             // planning). The stamp keeps a repeated call from counting twice.
