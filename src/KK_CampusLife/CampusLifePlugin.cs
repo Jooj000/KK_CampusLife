@@ -85,6 +85,8 @@ namespace Joojkk.CampusLife
                 ClassLoan.Sweep();
                 Scenes.Watchdog();
                 Forms.KeepHeld();
+                ChoicePause.Tick();
+                Director.KeepHalted();
                 Reactions.Tick();
                 Consent.Tick();
                 Stage.Tick();
@@ -107,9 +109,11 @@ namespace Joojkk.CampusLife
                     Conversation.Watch();
                     TalkBadges.Update();
                     PositionTool.Update();
+                    SpotEditor.Update();
                     Markers.UpdateMinimap();
                     RadarMap.Update();
                     CafeteriaStore.Update();
+                    ClipboardWarm.Tick();
                 }
                 if (GiftMenu.IsOpen && !G.TalkSceneOpen) GiftMenu.Close();
             }
@@ -137,6 +141,7 @@ namespace Joojkk.CampusLife
             {
                 if (!Campus.On) return;
                 PositionTool.OnGUI();
+                SpotEditor.OnGUI();
                 NightIcon.OnGUI();
             }
             catch (Exception e) { Log.LogDebug(e); }

@@ -320,7 +320,9 @@ namespace Joojkk.CampusLife
             foreach (var an in AnchorsOn(map))
             {
                 var anchor = an;
-                var kind = an.Acts.GroupBy(KindOf).OrderByDescending(g => g.Count()).First().Key;
+                var main = an.Acts.GroupBy(KindOf).OrderByDescending(g => g.Count()).First();
+                var kind = main.Key;
+                var act = main.First().Id;
                 try
                 {
                     // Walking into the icon shows the activity's name and what it gives (SpotHint).
@@ -330,7 +332,7 @@ namespace Joojkk.CampusLife
                         evt.onTriggerEnter += c => { if (c != null && c.CompareTag("Player")) SpotHint.Enter(anchor); };
                         evt.onTriggerExit += c => { if (c != null && c.CompareTag("Player")) SpotHint.Exit(anchor); };
                     };
-                    list.Add(GameAPI.AddActionIcon(map, an.IconPos, ActivityIcon.Get(kind, true), ActivityIcon.Get(kind, false), () => Use(anchor), created, true, now));
+                    list.Add(GameAPI.AddActionIcon(map, an.IconPos, ActivityIcon.Get(kind, act, true), ActivityIcon.Get(kind, act, false), () => Use(anchor), created, true, now));
                 }
                 catch (Exception e) { CampusLifePlugin.Log.LogError("Activity spot icon: " + e); }
             }
@@ -379,6 +381,15 @@ namespace Joojkk.CampusLife
             Spots.Set("act:" + a.Id, map, p.position, p.rotation.eulerAngles.y);
             Rebuild(map);
             Toasts.Show(a.Name + " is now done here (" + Places.MapLabel(map) + ").");
+        }
+
+        /// <summary>Puts an activity at a spot on a map (the spot editor's "Here" and "1 body ahead") and moves its icon now.</summary>
+        public static void SetSpot(ActivityDef a, int map, Vector3 pos, float yaw)
+        {
+            Spots.Set("act:" + a.Id, map, pos, yaw);
+            Rebuild(map);
+            Toasts.Show(a.Name + " is now done here (" + Places.MapLabel(map) + ").");
+            CampusLifePlugin.Log.LogInfo(string.Format(System.Globalization.CultureInfo.InvariantCulture, "Activity spot: {0} on map {1} at {2:0.00}, {3:0.00}, {4:0.00} facing {5:0}", a.Id, map, pos.x, pos.y, pos.z, yaw));
         }
 
         public static void ResetSpot(ActivityDef a)
